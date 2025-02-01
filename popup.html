@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ServiceNow Incidents</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .close-btn { cursor: pointer; font-size: 18px; color: red; }
+        .priority-high { background-color: #f87171; } /* Red */
+        .priority-medium { background-color: #facc15; } /* Yellow */
+        .priority-low { background-color: #86efac; } /* Green */
+        .incident-card { cursor: pointer; transition: transform 0.2s ease-in-out; }
+        .incident-card:hover { transform: scale(1.02); }
+    </style>
+</head>
+<body class="p-4 bg-gray-100">
+    <div class="bg-white shadow-md rounded-lg p-4">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-semibold">Incidents</h2>
+            <span class="close-btn" onclick="window.close()">✖</span>
+        </div>
+
+        <!-- Search Bar -->
+        <input type="text" id="search" class="w-full p-2 border rounded-md mb-3" placeholder="Search incidents..." oninput="filterIncidents()">
+
+        <!-- Filters -->
+        <div class="flex gap-2 mb-3">
+            <select id="filter-state" class="p-2 border rounded-md" onchange="filterIncidents()">
+                <option value="">All States</option>
+                <option value="1">New</option>
+                <option value="2">In Progress</option>
+                <option value="3">On Hold</option>
+                <option value="6">Resolved</option>
+                <option value="7">Closed</option>
+            </select>
+
+            <select id="sort-order" class="p-2 border rounded-md" onchange="filterIncidents()">
+                <option value="date-desc">Newest First</option>
+                <option value="date-asc">Oldest First</option>
+                <option value="priority-desc">High Priority First</option>
+                <option value="priority-asc">Low Priority First</option>
+            </select>
+        </div>
+
+        <!-- Priority Legend -->
+        <div class="flex gap-3 mb-3">
+            <span class="px-3 py-1 text-xs text-white rounded-md priority-high">High</span>
+            <span class="px-3 py-1 text-xs text-white rounded-md priority-medium">Medium</span>
+            <span class="px-3 py-1 text-xs text-white rounded-md priority-low">Low</span>
+        </div>
+
+        <!-- Incident List -->
+        <div id="incident-list" class="space-y-3">Loading...</div>
+    </div>
+
+    <script>
+        const { ipcRenderer, shell } = require("electron");
+        let allIncidents = [];
+
+        ipcRenderer.on("update-incidents", (event, incidents) => {
+            allIncidents = incidents;
+            filterIncidents();
+        });
+
+        function filterIncidents() {
+            const searchQuery = document.getElementById("search").value.toLowerCase();
+            const selectedState = document.getElementById("filter-state").value;
+            const sortOrder = document.getElementById("sort-order").value;
+
+            let filtered = allIncidents.filter(incident => {
+                return (!selectedState || incident.state == selectedState) &&
+                       (incident.short_description.toLowerCase().includes(searchQuery));
+            });
+
+            if (sortOrder === "date-desc") {
+                filtered.sort((a, b) => new Date(b.opened_at) - new Date(a.opened_at));
+            } else if (sortOrder === "date-asc") {
+                filtered.sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
+            } else if (sortOrder === "priority-desc") {
+                filtered.sort((a, b) => (b.priority || 3) - (a.priority || 3));
+            } else if (sortOrder === "priority-asc") {
+                filtered.sort((a, b) => (a.priority || 3) - (b.priority || 3));
+            }
+
+            renderIncidents(filtered);
+        }
+
+        function renderIncidents(incidents) {
+            const incidentList = document.getElementById("incident-list");
+            if (incidents.length === 0) {
+                incidentList.innerHTML = "<p class='text-center text-gray-500'>No incidents found.</p>";
+                return;
+            }
+
+            incidentList.innerHTML = incidents.map(incident => `
+                <div class="p-3 border rounded-md shadow-sm incident-card ${getPriorityClass(incident.priority)}" onclick="openIncident('${incident.sys_id}')">
+                    <strong class="text-white">${incident.short_description}</strong>
+                    <p class="text-sm text-white">Status: ${getStateName(incident.state)}</p>
+                    <p class="text-xs text-white">Priority: ${getPriorityName(incident.priority)}</p>
+                    <p class="text-xs text-white">Opened: ${formatDate(incident.opened_at)}</p>
+                </div>
+            `).join("");
+        }
+
+        function openIncident(sys_id) {
+            const instanceUrl = "https://your-instance.service-now.com";
+            const incidentUrl = `${instanceUrl}/nav_to.do?uri=/incident.do?sys_id=${sys_id}`;
+            shell.openExternal(incidentUrl);
+        }
+
+        function getPriorityClass(priority) {
+            return priority === "1" ? "priority-high" :
+                   priority === "2" ? "priority-medium" : "priority-low";
+        }
+
+        function getPriorityName(priority) {
+            return priority === "1" ? "High" :
+                   priority === "2" ? "Medium" : "Low";
+        }
+
+        function getStateName(state) {
+            const states = {
+                "1": "New",
+                "2": "In Progress",
+                "3": "On Hold",
+                "6": "Resolved",
+                "7": "Closed"
+            };
+            return states[state] || "Unknown";
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString();
+        }
+    </script>
+</body>
+</html>
