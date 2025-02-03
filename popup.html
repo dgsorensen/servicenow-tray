@@ -8,15 +8,25 @@
     <style>
         body { font-family: Arial, sans-serif; }
         .close-btn { cursor: pointer; font-size: 18px; color: red; }
+        .profile-img { width: 50px; height: 50px; border-radius: 50%; }
+        .incident-card { cursor: pointer; transition: transform 0.2s ease-in-out; }
+        .incident-card:hover { transform: scale(1.02); }
         .priority-high { background-color: #f87171; } /* Red */
         .priority-medium { background-color: #facc15; } /* Yellow */
         .priority-low { background-color: #86efac; } /* Green */
-        .incident-card { cursor: pointer; transition: transform 0.2s ease-in-out; }
-        .incident-card:hover { transform: scale(1.02); }
     </style>
 </head>
 <body class="p-4 bg-gray-100">
     <div class="bg-white shadow-md rounded-lg p-4">
+        <!-- User Info Section -->
+        <div id="user-info" class="flex items-center gap-3 mb-3 hidden">
+            <img id="user-avatar" class="profile-img" src="default-avatar.png" alt="User Avatar">
+            <div>
+                <p id="user-name" class="text-lg font-semibold"></p>
+                <p id="user-email" class="text-sm text-gray-600"></p>
+            </div>
+        </div>
+
         <div class="flex justify-between items-center mb-3">
             <h2 class="text-lg font-semibold">Incidents</h2>
             <span class="close-btn" onclick="window.close()">✖</span>
@@ -58,6 +68,13 @@
     <script>
         const { ipcRenderer, shell } = require("electron");
         let allIncidents = [];
+
+        ipcRenderer.on("update-user-info", (event, user) => {
+            document.getElementById("user-avatar").src = user.picture;
+            document.getElementById("user-name").innerText = user.name;
+            document.getElementById("user-email").innerText = user.email;
+            document.getElementById("user-info").classList.remove("hidden");
+        });
 
         ipcRenderer.on("update-incidents", (event, incidents) => {
             allIncidents = incidents;
